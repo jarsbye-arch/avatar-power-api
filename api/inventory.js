@@ -5,7 +5,7 @@ module.exports = async (req, res) => {
   const g = guard(req, res);
   if (!g) return;
   try {
-    let url = `https://inventory.roblox.com/v2/users/${g.userId}/inventory/${g.typeId}?limit=50&sortOrder=Desc`;
+    let url = `https://inventory.roblox.com/v2/users/${g.userId}/inventory/${g.typeId}?limit=25&sortOrder=Desc`;
     if (g.cursor) url += `&cursor=${encodeURIComponent(g.cursor)}`;
 
     const r = await robloxGet(url);
@@ -13,7 +13,9 @@ module.exports = async (req, res) => {
     if (r.status === 401 || r.status === 403) return res.status(403).json({ error: "private" });
     if (r.status !== 200 || !r.body) return res.status(502).json({ error: "roblox_" + r.status });
 
-    const items = (r.body.data || []).map((x) => ({ id: x.assetId })).filter((x) => x.id);
+    const items = (r.body.data || [])
+      .map((x) => ({ id: x.assetId, name: x.assetName, typeId: Number(g.typeId), owned: true }))
+      .filter((x) => x.id);
     res.status(200).json({ items, nextCursor: r.body.nextPageCursor || "" });
   } catch (e) {
     res.status(504).json({ error: "timeout_or_network" });
