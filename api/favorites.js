@@ -14,7 +14,14 @@ module.exports = async (req, res) => {
     if (r.status !== 200 || !r.body) return res.status(502).json({ error: "roblox_" + r.status });
 
     const rows = r.body.data || r.body.favorites || r.body.Data || [];
-    const items = rows.map((x) => ({ id: x.id || x.assetId || x.Id })).filter((x) => x.id);
+    const items = rows
+      .map((x) => ({
+        id: x.id || x.assetId || x.Id,
+        name: x.name,
+        price: x.price == null ? x.lowestPrice : x.price,
+        typeId: x.assetType,
+      }))
+      .filter((x) => x.id);
     res.status(200).json({ items, nextCursor: r.body.nextPageCursor || r.body.nextCursor || "" });
   } catch (e) {
     res.status(504).json({ error: "timeout_or_network" });
