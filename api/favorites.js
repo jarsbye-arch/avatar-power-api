@@ -5,7 +5,7 @@ module.exports = async (req, res) => {
   const g = guard(req, res);
   if (!g) return;
   try {
-    let url = `https://catalog.roblox.com/v1/favorites/users/${g.userId}/favorites/${g.typeId}/assets?limit=30&sortOrder=Desc`;
+    let url = `https://catalog.roblox.com/v1/favorites/users/${g.userId}/favorites/${g.typeId}/assets?limit=25&sortOrder=Desc`;
     if (g.cursor) url += `&cursor=${encodeURIComponent(g.cursor)}`;
 
     const r = await robloxGet(url);
