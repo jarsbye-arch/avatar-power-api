@@ -15,11 +15,11 @@ function guard(req, res) {
     res.status(400).json({ error: "bad_input" });
     return null;
   }
-  // rate limit: 20 request / 10 detik per userId
+  // rate limit: 100 request / 10 detik per userId (dinaikkan dari 20 supaya "ambil semua kategori" muat)
   const now = Date.now();
   if (hits.size > 5000) hits.clear();
   const arr = (hits.get(userId) || []).filter((t) => now - t < 10000);
-  if (arr.length >= 20) {
+  if (arr.length >= 100) {
     res.status(429).json({ error: "rate_limited" });
     return null;
   }
