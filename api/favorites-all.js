@@ -24,7 +24,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function get(url) {
   let r;
   for (let i = 0; i < 3; i++) {
-    r = await robloxGet(url, 20000);
+    r = await robloxGet(url, 2000); // cache singkat: favorit baru cepat terlihat
     if (r.status !== 429 && r.status < 500) return r;
     await sleep(350 * (i + 1));
   }
