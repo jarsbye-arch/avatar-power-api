@@ -28,7 +28,7 @@ function guard(req, res) {
   return { userId, typeId, cursor, debug: req.query.debug === "1" };
 }
 
-async function robloxGet(url, ttlMs = 30000) {
+async function robloxGet(url, ttlMs = 3000) { // cache singkat supaya favorit baru cepat terlihat
   const c = cache.get(url);
   if (c && Date.now() - c.t < ttlMs) return c.v;
   const ctrl = new AbortController();
