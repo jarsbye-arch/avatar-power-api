@@ -16,7 +16,13 @@ const TYPES = [
 
 const CONCURRENCY = 12;
 const MAX_PAGES = 60;
-const BUDGET_MS = 8000; // jaga di bawah batas waktu fungsi Vercel
+const BUDGET_MS = 5500; // waktu untuk mengambil daftar item
+const DATE_MS = 2700;   // tambahan waktu untuk mengambil TANGGAL favorit (total tetap di bawah batas Vercel)
+const TYPE_ORDER = {};
+TYPES.forEach((t, i) => (TYPE_ORDER[t] = i));
+
+// tanggal favorit per item (tidak berubah) -> disimpan selama instance Vercel hidup. nilai 0 = tidak ada tanggal
+const dateCache = new Map();
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -77,10 +83,49 @@ async function fetchType(userId, t, deadline) {
   return { items, err: null };
 }
 
+// Tanggal favorit tiap item: GET /v1/favorites/users/{userId}/assets/{assetId}/favorite -> { created }
+// Antrean: item terbaru tiap kategori dulu, jadi urutan global paling atas selalu akurat duluan.
+async function addDates(userId, items, deadline) {
+  const info = { looked: 0, found: 0, blocked: false, status: 0, cached: 0 };
+  if (dateCache.size > 20000) dateCache.clear();
+  const todo = [];
+  for (const it of items) {
+    if (it.t) { info.found++; continue; }
+    const v = dateCache.get(userId + ":" + it.id);
+    if (v) { it.t = v; info.cached++; }
+    else if (v === undefined) todo.push(it);
+  }
+  todo.sort((a, b) => a.rank - b.rank || (TYPE_ORDER[a.typeId] ?? 99) - (TYPE_ORDER[b.typeId] ?? 99));
+
+  let idx = 0;
+  let rate = 0;
+  async function worker() {
+    while (!info.blocked && Date.now() < deadline) {
+      const i = idx++;
+      if (i >= todo.length) return;
+      const it = todo[i];
+      const url = `https://catalog.roblox.com/v1/favorites/users/${userId}/assets/${it.id}/favorite`;
+      let r;
+      try { r = await robloxGet(url, 1); } catch (e) { continue; }
+      info.looked++;
+      info.status = r.status;
+      if (r.status === 401 || r.status === 403) { info.blocked = true; return; }
+      if (r.status === 429) { if (++rate > 5) { info.blocked = true; return; } continue; }
+      const c = r.body && (r.body.created || r.body.Created);
+      const ms = c ? Date.parse(c) : NaN;
+      if (Number.isFinite(ms)) { it.t = ms; dateCache.set(userId + ":" + it.id, ms); info.found++; }
+      else if (r.status === 200 || r.status === 404) dateCache.set(userId + ":" + it.id, 0);
+    }
+  }
+  await Promise.all(Array.from({ length: 20 }, worker));
+  return info;
+}
+
 module.exports = async (req, res) => {
   const g = guard(req, res);
   if (!g) return;
-  const deadline = Date.now() + BUDGET_MS;
+  const startedAt = Date.now();
+  const deadline = startedAt + BUDGET_MS;
   const results = new Array(TYPES.length);
   let next = 0;
 
@@ -107,5 +152,7 @@ module.exports = async (req, res) => {
     for (const it of r.items) items.push(it);
   });
   if (priv && items.length === 0) return res.status(403).json({ error: "private" });
-  res.status(200).json({ items, failed });
+  let dateInfo = null;
+  try { dateInfo = await addDates(g.userId, items, startedAt + BUDGET_MS + DATE_MS); } catch (e) {}
+  res.status(200).json({ items, failed, dateInfo });
 };
